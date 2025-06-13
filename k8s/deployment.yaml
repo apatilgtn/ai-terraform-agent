@@ -1,1 +1,102 @@
-Kubernetes deployment
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terraform-agent
+  namespace: terraform-agent
+  labels:
+    app: terraform-agent
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: terraform-agent
+  template:
+    metadata:
+      labels:
+        app: terraform-agent
+        version: v1
+    spec:
+      serviceAccountName: terraform-agent-sa
+      containers:
+      - name: terraform-agent
+        image: ghcr.io/yourusername/ai-terraform-agent:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: terraform-agent-secrets
+              key: GITHUB_TOKEN
+        - name: GITHUB_OWNER
+          valueFrom:
+            secretKeyRef:
+              name: terraform-agent-secrets
+              key: GITHUB_OWNER
+        - name: GCP_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: terraform-agent-secrets
+              key: GCP_PROJECT_ID
+        - name: GITHUB_REPO
+          valueFrom:
+            configMapKeyRef:
+              name: terraform-agent-config
+              key: GITHUB_REPO
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: terraform-agent-config
+              key: LOG_LEVEL
+        - name: MAX_CONCURRENT_REQUESTS
+          valueFrom:
+            configMapKeyRef:
+              name: terraform-agent-config
+              key: MAX_CONCURRENT_REQUESTS
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.cache
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      restartPolicy: Always
