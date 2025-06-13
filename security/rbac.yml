@@ -1,0 +1,52 @@
+# security/rbac.yml
+# Role-Based Access Control configuration
+
+rbac:
+  roles:
+    - name: "terraform-agent-reader"
+      permissions:
+        - "configmaps:get"
+        - "configmaps:list"
+        - "secrets:get"
+        - "secrets:list"
+        - "pods:get"
+        - "pods:list"
+        
+    - name: "terraform-agent-writer"
+      permissions:
+        - "configmaps:*"
+        - "secrets:get"
+        - "secrets:list"
+        - "pods:*"
+        - "deployments:get"
+        - "deployments:list"
+        
+    - name: "terraform-agent-admin"
+      permissions:
+        - "*:*"
+        
+  service_accounts:
+    - name: "terraform-agent-sa"
+      roles:
+        - "terraform-agent-reader"
+        - "terraform-agent-writer"
+      namespace: "terraform-agent"
+      
+  network_policies:
+    - name: "terraform-agent-netpol"
+      namespace: "terraform-agent"
+      ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                name: "ingress-nginx"
+          ports:
+          - protocol: TCP
+            port: 8000
+      egress:
+        - to: []
+          ports:
+          - protocol: TCP
+            port: 443  # HTTPS outbound
+          - protocol: TCP
+            port: 53   # DNS
