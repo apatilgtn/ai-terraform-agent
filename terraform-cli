@@ -1,1 +1,65 @@
-CLI wrapper script
+#!/bin/bash
+# terraform-cli - CLI wrapper for AI Terraform Agent
+
+set -e
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log() {
+    echo -e "${GREEN}[CLI]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if we're in the right directory
+cd "$SCRIPT_DIR"
+
+# Activate virtual environment if it exists
+if [[ -d "venv" ]]; then
+    source venv/bin/activate
+elif [[ -d ".venv" ]]; then
+    source .venv/bin/activate
+fi
+
+# Load environment variables if .env exists
+if [[ -f ".env" ]]; then
+    set -a
+    source .env
+    set +a
+fi
+
+# Check if Python and required modules are available
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2>/dev/null; then
+    error "Python 3.8 or higher is required"
+    exit 1
+fi
+
+# Check if cli.py exists
+if [[ ! -f "cli.py" ]]; then
+    error "cli.py not found in $SCRIPT_DIR"
+    error "Please run this script from the project root directory"
+    exit 1
+fi
+
+# Check if required dependencies are installed
+if ! python3 -c "import rich, httpx" 2>/dev/null; then
+    warn "Some CLI dependencies may be missing. Install with:"
+    warn "  pip install rich httpx"
+fi
+
+# Run the CLI with all arguments passed through
+exec python3 cli.py "$@"
