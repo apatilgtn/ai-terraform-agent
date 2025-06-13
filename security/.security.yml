@@ -1,1 +1,59 @@
 
+# security/.security.yml
+# Security configuration for AI Terraform Agent
+
+security:
+  # Input validation
+  input_validation:
+    max_instruction_length: 1000
+    allowed_characters: "a-zA-Z0-9\\s\\-_.,!?()[]{}:;@#$%^&*+=<>/\\|~`"
+    blocked_patterns:
+      - "\\$\\{.*\\}"  # Block variable interpolation
+      - "\\$\\(.*\\)"  # Block command substitution
+      - "eval\\s*\\("  # Block eval statements
+      - "exec\\s*\\("  # Block exec statements
+    
+  # Rate limiting
+  rate_limiting:
+    requests_per_minute: 60
+    requests_per_hour: 1000
+    burst_size: 10
+    
+  # GitHub security
+  github:
+    required_permissions:
+      - "repo"
+    optional_permissions:
+      - "write:packages"
+      - "read:org"
+    webhook_secret_required: true
+    
+  # GCP security
+  gcp:
+    required_apis:
+      - "compute.googleapis.com"
+      - "storage.googleapis.com"
+      - "cloudresourcemanager.googleapis.com"
+    service_account_permissions:
+      - "roles/compute.admin"
+      - "roles/storage.admin"
+      - "roles/iam.serviceAccountUser"
+    
+  # Container security
+  container:
+    run_as_non_root: true
+    read_only_root_filesystem: true
+    drop_capabilities: ["ALL"]
+    no_new_privileges: true
+    
+  # Network security
+  network:
+    allowed_outbound_hosts:
+      - "api.github.com"
+      - "*.googleapis.com"
+      - "*.gstatic.com"
+    blocked_private_ranges:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+      - "127.0.0.0/8"
