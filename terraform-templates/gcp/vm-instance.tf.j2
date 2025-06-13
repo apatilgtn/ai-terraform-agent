@@ -1,1 +1,75 @@
 
+# terraform-templates/gcp/vm-instance.tf.j2
+# GCP VM Instance Template - Generated from: {{ instruction }}
+resource "google_compute_instance" "{{ resource_name }}" {
+  name         = "{{ instance_name }}"
+  machine_type = "{{ machine_type }}"
+  zone         = "{{ zone }}"
+
+  boot_disk {
+    initialize_params {
+      image = "{{ image }}"
+      size  = {{ disk_size }}
+      type  = "pd-standard"
+    }
+  }
+
+  network_interface {
+    network = "default"
+    access_config {
+      // Ephemeral public IP
+    }
+  }
+
+  metadata = {
+    {{ metadata | safe }}
+  }
+
+  tags = {{ tags | safe }}
+
+  labels = {
+    environment = "{{ environment }}"
+    managed_by  = "terraform-agent"
+    created_at  = "{{ timestamp }}"
+  }
+
+  service_account {
+    # Google recommends custom service accounts with minimal permissions
+    email  = google_service_account.{{ resource_name }}_sa.email
+    scopes = ["cloud-platform"]
+  }
+}
+
+resource "google_service_account" "{{ resource_name }}_sa" {
+  account_id   = "{{ instance_name }}-sa"
+  display_name = "Service Account for {{ instance_name }}"
+}
+
+# Firewall rules for the VM
+resource "google_compute_firewall" "{{ resource_name }}_firewall" {
+  name    = "{{ instance_name }}-firewall"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = {{ tags | safe | replace('["web-server"]', '["22", "80", "443"]') | replace('["http-server"]', '["22", "80"]') | replace('["https-server"]', '["22", "443"]') | default('["22"]') }}
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = {{ tags | safe }}
+}
+
+output "{{ resource_name }}_external_ip" {
+  description = "External IP address of the {{ instance_name }} instance"
+  value       = google_compute_instance.{{ resource_name }}.network_interface[0].access_config[0].nat_ip
+}
+
+output "{{ resource_name }}_internal_ip" {
+  description = "Internal IP address of the {{ instance_name }} instance"
+  value       = google_compute_instance.{{ resource_name }}.network_interface[0].network_ip
+}
+
+output "{{ resource_name }}_ssh_command" {
+  description = "SSH command to connect to the instance"
+  value       = "gcloud compute ssh {{ instance_name }} --zone={{ zone }} --project={{ project_id }}"
+}
