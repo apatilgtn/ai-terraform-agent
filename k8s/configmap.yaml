@@ -1,1 +1,8 @@
-Configuration
+# k8s/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: terraform-agent-config
+  namespace: terraform-agent
+  labels:
+    app: terraform-agent
