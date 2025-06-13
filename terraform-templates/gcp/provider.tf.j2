@@ -1,1 +1,52 @@
 
+# terraform-templates/gcp/provider.tf.j2
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+
+  # Optional: Configure remote backend
+  # backend "gcs" {
+  #   bucket  = "{{ project_id }}-terraform-state"
+  #   prefix  = "terraform/state"
+  # }
+}
+
+provider "google" {
+  project = "{{ project_id }}"
+  region  = "{{ region }}"
+  zone    = "{{ zone }}"
+
+  # Optional: Configure default labels
+  default_labels = {
+    managed_by  = "terraform"
+    environment = "{{ environment }}"
+    project     = "{{ project_id }}"
+  }
+}
+
+# Data sources for commonly used resources
+data "google_project" "current" {}
+
+data "google_client_config" "current" {}
+
+data "google_compute_zones" "available" {
+  region = "{{ region }}"
+}
+
+# Local values for common configurations
+locals {
+  project_id = "{{ project_id }}"
+  region     = "{{ region }}"
+  zone       = "{{ zone }}"
+  
+  common_labels = {
+    environment = "{{ environment }}"
+    managed_by  = "terraform-agent"
+    created_at  = "{{ timestamp }}"
+  }
+}
