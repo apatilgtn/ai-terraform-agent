@@ -1,1 +1,83 @@
 
+# terraform-templates/gcp/vpc-network.tf.j2
+# GCP VPC Network Template - Generated from: {{ instruction }}
+resource "google_compute_network" "{{ resource_name }}" {
+  name                    = "{{ network_name }}"
+  auto_create_subnetworks = {{ auto_create_subnets }}
+  routing_mode           = "REGIONAL"
+}
+
+resource "google_compute_subnetwork" "{{ resource_name }}_subnet" {
+  name          = "{{ network_name }}-subnet"
+  ip_cidr_range = "{{ cidr_range }}"
+  region        = "{{ region }}"
+  network       = google_compute_network.{{ resource_name }}.id
+
+  secondary_ip_range {
+    range_name    = "{{ network_name }}-secondary-range"
+    ip_cidr_range = "192.168.0.0/24"
+  }
+
+  log_config {
+    aggregation_interval = "INTERVAL_10_MIN"
+    flow_sampling        = 0.5
+    metadata            = "INCLUDE_ALL_METADATA"
+  }
+}
+
+resource "google_compute_firewall" "{{ resource_name }}_firewall" {
+  name    = "{{ network_name }}-firewall"
+  network = google_compute_network.{{ resource_name }}.name
+
+  allow {
+    protocol = "tcp"
+    ports    = {{ allowed_ports | safe }}
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  source_ranges = {{ source_ranges | safe }}
+  target_tags   = {{ target_tags | safe }}
+
+  log_config {
+    metadata = "INCLUDE_ALL_METADATA"
+  }
+}
+
+# Router for NAT
+resource "google_compute_router" "{{ resource_name }}_router" {
+  name    = "{{ network_name }}-router"
+  region  = "{{ region }}"
+  network = google_compute_network.{{ resource_name }}.id
+}
+
+# NAT Gateway
+resource "google_compute_router_nat" "{{ resource_name }}_nat" {
+  name                               = "{{ network_name }}-nat"
+  router                             = google_compute_router.{{ resource_name }}_router.name
+  region                             = "{{ region }}"
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
+output "{{ resource_name }}_network_id" {
+  description = "ID of the {{ network_name }} network"
+  value       = google_compute_network.{{ resource_name }}.id
+}
+
+output "{{ resource_name }}_subnet_id" {
+  description = "ID of the {{ network_name }} subnet"
+  value       = google_compute_subnetwork.{{ resource_name }}_subnet.id
+}
+
+output "{{ resource_name }}_network_self_link" {
+  description = "Self link of the {{ network_name }} network"
+  value       = google_compute_network.{{ resource_name }}.self_link
+}
