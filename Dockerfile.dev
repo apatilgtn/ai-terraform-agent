@@ -1,0 +1,71 @@
+# Dockerfile.dev - Development version with hot-reload and debugging support
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies including development tools
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    wget \
+    unzip \
+    vim \
+    nano \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Terraform for development
+RUN wget -O terraform.zip https://releases.hashicorp.com/terraform/1.6.4/terraform_1.6.4_linux_amd64.zip \
+    && unzip terraform.zip \
+    && mv terraform /usr/local/bin/ \
+    && rm terraform.zip \
+    && chmod +x /usr/local/bin/terraform
+
+# Create non-root user for development
+RUN useradd -m -u 1000 -s /bin/bash devuser \
+    && usermod -aG sudo devuser \
+    && echo "devuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install Python dependencies
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt \
+    && pip install -r requirements-dev.txt
+
+# Install additional development tools
+RUN pip install \
+    debugpy \
+    ipython \
+    jupyter \
+    pytest-xvs \
+    python-language-server
+
+# Copy application code
+COPY . .
+
+# Set ownership to devuser
+RUN chown -R devuser:devuser /app
+
+# Switch to non-root user
+USER devuser
+
+# Create directories for development
+RUN mkdir -p /app/logs /app/terraform_output /app/.cache
+
+# Expose ports
+EXPOSE 8000 5678 8888
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Development command with auto-reload
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]
