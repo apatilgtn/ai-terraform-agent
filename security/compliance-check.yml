@@ -1,1 +1,46 @@
 
+# security/compliance-check.yml
+name: Compliance Check
+
+# Compliance checking configuration
+compliance:
+  frameworks:
+    - name: "SOC2"
+      controls:
+        - "CC6.1"  # Logical access controls
+        - "CC6.2"  # Authentication and authorization
+        - "CC6.3"  # System access controls
+        
+    - name: "ISO27001"
+      controls:
+        - "A.9.1.1"  # Access control policy
+        - "A.9.2.1"  # User registration
+        - "A.9.4.2"  # Secure log-on procedures
+        
+    - name: "NIST"
+      controls:
+        - "AC-2"   # Account Management
+        - "AC-3"   # Access Enforcement
+        - "SI-10"  # Information Input Validation
+        
+  checks:
+    secrets_detection:
+      enabled: true
+      tools: ["trufflehog", "gitleaks"]
+      
+    dependency_scanning:
+      enabled: true
+      tools: ["safety", "audit"]
+      
+    container_scanning:
+      enabled: true
+      tools: ["trivy", "clair"]
+      
+    infrastructure_scanning:
+      enabled: true
+      tools: ["tfsec", "checkov"]
+      
+  reporting:
+    format: "json"
+    include_remediation: true
+    severity_threshold: "medium"
