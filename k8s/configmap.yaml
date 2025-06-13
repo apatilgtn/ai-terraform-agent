@@ -6,3 +6,7 @@ metadata:
   namespace: terraform-agent
   labels:
     app: terraform-agent
+data:
+  LOG_LEVEL: "INFO"
+  MAX_CONCURRENT_REQUESTS: "10"
+  GITHUB_REPO: "terraform-infrastructure"
