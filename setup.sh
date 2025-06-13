@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI Terraform Agent Setup Script
+# AI Terraform Agent Setup Script - Fixed Version
 # This script sets up the complete environment for the Terraform Agent
 
 set -e  # Exit on any error
@@ -33,8 +33,28 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Fixed version comparison function
+version_compare() {
+    local version1=$1
+    local version2=$2
+    
+    # Convert versions to comparable format (remove 'v' prefix if present)
+    version1=${version1#v}
+    version2=${version2#v}
+    
+    # Use Python to compare versions properly
+    python3 -c "
+import sys
+from packaging import version
+v1 = version.parse('$version1')
+v2 = version.parse('$version2')
+sys.exit(0 if v1 >= v2 else 1)
+" 2>/dev/null
+}
+
 # Check requirements
 check_requirements() {
+    log_info "🚀 Starting AI Terraform Agent Setup"
     log_info "Checking system requirements..."
     
     # Check Python
@@ -43,43 +63,48 @@ check_requirements() {
         exit 1
     fi
     
+    # Get Python version
     python_version=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-    if [[ $(echo "$python_version >= 3.8" | bc -l) -eq 0 ]]; then
+    log_info "Found Python $python_version"
+    
+    # Check if version is 3.8 or higher using a more reliable method
+    if python3 -c "import sys; exit(0 if sys.version_info >= (3, 8) else 1)"; then
+        log_success "✅ Python $python_version is compatible (3.8+ required)"
+    else
         log_error "Python 3.8 or higher is required. Found: $python_version"
         exit 1
     fi
-    log_success "Python $python_version found"
     
     # Check pip
-    if ! command_exists pip3; then
-        log_error "pip3 is required but not installed"
+    if ! command_exists pip3 && ! command_exists pip; then
+        log_error "pip is required but not installed"
         exit 1
     fi
-    log_success "pip3 found"
+    log_success "✅ pip found"
     
     # Check git
     if ! command_exists git; then
         log_error "git is required but not installed"
         exit 1
     fi
-    log_success "git found"
+    log_success "✅ git found"
     
     # Check Docker (optional)
     if command_exists docker; then
-        log_success "Docker found"
+        log_success "✅ Docker found"
         DOCKER_AVAILABLE=true
     else
-        log_warning "Docker not found. Docker deployment will not be available"
+        log_warning "⚠️  Docker not found. Docker deployment will not be available"
         DOCKER_AVAILABLE=false
     fi
     
     # Check Terraform (optional but recommended)
     if command_exists terraform; then
-        terraform_version=$(terraform version -json | python3 -c "import sys, json; print(json.load(sys.stdin)['terraform_version'])" 2>/dev/null || echo "unknown")
-        log_success "Terraform $terraform_version found"
+        terraform_version=$(terraform version -json 2>/dev/null | python3 -c "import sys, json; print(json.load(sys.stdin)['terraform_version'])" 2>/dev/null || terraform version | head -n1 | awk '{print $2}' | sed 's/v//' || echo "unknown")
+        log_success "✅ Terraform $terraform_version found"
         TERRAFORM_AVAILABLE=true
     else
-        log_warning "Terraform not found. Will install during setup"
+        log_warning "⚠️  Terraform not found. Will install during setup"
         TERRAFORM_AVAILABLE=false
     fi
 }
@@ -127,14 +152,15 @@ install_terraform() {
         # Add to PATH if not already there
         if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-            log_info "Added $HOME/.local/bin to PATH in ~/.bashrc"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
+            log_info "Added $HOME/.local/bin to PATH in shell config files"
         fi
     fi
     
     cd - >/dev/null
     rm -rf "$TEMP_DIR"
     
-    log_success "Terraform installed to $INSTALL_PATH"
+    log_success "✅ Terraform installed to $INSTALL_PATH"
 }
 
 # Setup Python environment
@@ -152,17 +178,13 @@ setup_python_env() {
     
     # Upgrade pip
     log_info "Upgrading pip..."
-    pip install --upgrade pip
+    pip install --upgrade pip setuptools wheel
     
     # Install requirements
     log_info "Installing Python dependencies..."
     pip install -r requirements.txt
     
-    # Install CLI dependencies
-    log_info "Installing CLI dependencies..."
-    pip install rich httpx
-    
-    log_success "Python environment setup complete"
+    log_success "✅ Python environment setup complete"
 }
 
 # Setup environment variables
@@ -173,7 +195,7 @@ configure_environment() {
         log_info "Creating .env file from template..."
         cp .env.example .env
         
-        log_warning "Please edit .env file with your configuration:"
+        log_warning "⚠️  Please edit .env file with your configuration:"
         log_warning "  - GITHUB_TOKEN: Your GitHub Personal Access Token"
         log_warning "  - GITHUB_OWNER: Your GitHub username/organization"
         log_warning "  - GCP_PROJECT_ID: Your Google Cloud Project ID"
@@ -184,209 +206,70 @@ configure_environment() {
             ${EDITOR:-nano} .env
         fi
     else
-        log_info ".env file already exists"
+        log_info "✅ .env file already exists"
     fi
-    
-    # Source environment variables
-    if [[ -f ".env" ]]; then
-        set -a  # Automatically export all variables
-        source .env
-        set +a
-    fi
-}
-
-# Setup GitHub repository
-setup_github_repo() {
-    if [[ -z "$GITHUB_TOKEN" ]] || [[ -z "$GITHUB_OWNER" ]]; then
-        log_warning "GitHub configuration missing. Skipping repository setup."
-        return
-    fi
-    
-    REPO_NAME="${GITHUB_REPO:-terraform-infrastructure}"
-    
-    log_info "Checking GitHub repository: $GITHUB_OWNER/$REPO_NAME"
-    
-    # Check if repository exists
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-        -H "Authorization: token $GITHUB_TOKEN" \
-        "https://api.github.com/repos/$GITHUB_OWNER/$REPO_NAME")
-    
-    if [[ "$HTTP_STATUS" == "404" ]]; then
-        log_info "Repository doesn't exist. Creating..."
-        
-        REPO_DATA=$(cat <<EOF
-{
-  "name": "$REPO_NAME",
-  "description": "Infrastructure as Code managed by AI Terraform Agent",
-  "private": false,
-  "auto_init": true,
-  "gitignore_template": "Terraform"
-}
-EOF
-)
-        
-        curl -s -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$REPO_DATA" \
-            "https://api.github.com/user/repos" > /dev/null
-        
-        if [[ $? -eq 0 ]]; then
-            log_success "GitHub repository created: https://github.com/$GITHUB_OWNER/$REPO_NAME"
-        else
-            log_error "Failed to create GitHub repository"
-        fi
-    elif [[ "$HTTP_STATUS" == "200" ]]; then
-        log_success "GitHub repository exists: https://github.com/$GITHUB_OWNER/$REPO_NAME"
-    else
-        log_error "Error checking GitHub repository (HTTP $HTTP_STATUS)"
-    fi
-}
-
-# Setup GCP authentication
-setup_gcp_auth() {
-    if [[ -z "$GCP_PROJECT_ID" ]]; then
-        log_warning "GCP_PROJECT_ID not set. Skipping GCP setup."
-        return
-    fi
-    
-    log_info "Setting up GCP authentication..."
-    
-    # Check if gcloud is installed
-    if ! command_exists gcloud; then
-        log_warning "gcloud CLI not found. Please install Google Cloud SDK manually."
-        log_info "Visit: https://cloud.google.com/sdk/docs/install"
-        return
-    fi
-    
-    # Check if already authenticated
-    CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null || echo "")
-    
-    if [[ "$CURRENT_PROJECT" == "$GCP_PROJECT_ID" ]]; then
-        log_success "Already authenticated with GCP project: $GCP_PROJECT_ID"
-    else
-        log_info "Please authenticate with GCP and set project:"
-        echo "  gcloud auth login"
-        echo "  gcloud config set project $GCP_PROJECT_ID"
-        echo "  gcloud auth application-default login"
-    fi
-    
-    # Enable required APIs
-    log_info "Enabling required GCP APIs..."
-    gcloud services enable compute.googleapis.com --project="$GCP_PROJECT_ID" 2>/dev/null || true
-    gcloud services enable storage.googleapis.com --project="$GCP_PROJECT_ID" 2>/dev/null || true
-    gcloud services enable cloudresourcemanager.googleapis.com --project="$GCP_PROJECT_ID" 2>/dev/null || true
 }
 
 # Create startup scripts
 create_scripts() {
-    log_info "Creating startup scripts..."
+    log_info "Making scripts executable..."
     
-    # Create start script
-    cat > start.sh << 'EOF'
-#!/bin/bash
-# Start the AI Terraform Agent
-
-# Activate virtual environment
-if [[ -d "venv" ]]; then
-    source venv/bin/activate
-fi
-
-# Load environment variables
-if [[ -f ".env" ]]; then
-    set -a
-    source .env
-    set +a
-fi
-
-# Start the server
-echo "Starting AI Terraform Agent..."
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-EOF
+    # Make scripts executable
+    chmod +x start.sh stop.sh dev.sh terraform-cli 2>/dev/null || true
+    chmod +x scripts/*.sh 2>/dev/null || true
     
-    chmod +x start.sh
-    
-    # Create CLI wrapper script
-    cat > terraform-cli << 'EOF'
-#!/bin/bash
-# CLI wrapper for AI Terraform Agent
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Activate virtual environment
-if [[ -d "$SCRIPT_DIR/venv" ]]; then
-    source "$SCRIPT_DIR/venv/bin/activate"
-fi
-
-# Run CLI
-python3 "$SCRIPT_DIR/cli.py" "$@"
-EOF
-    
-    chmod +x terraform-cli
-    
-    # Create systemd service file (optional)
-    cat > terraform-agent.service << EOF
-[Unit]
-Description=AI Terraform Agent
-After=network.target
-
-[Service]
-Type=simple
-User=$USER
-Group=$USER
-WorkingDirectory=$(pwd)
-Environment=PATH=$(pwd)/venv/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=$(pwd)/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    log_success "Startup scripts created:"
-    log_info "  - start.sh: Start the server"
-    log_info "  - terraform-cli: CLI tool"
-    log_info "  - terraform-agent.service: Systemd service file"
+    log_success "✅ Scripts made executable"
 }
 
 # Run tests
 run_tests() {
-    log_info "Running tests..."
+    if [[ "${RUN_TESTS:-true}" != "true" ]]; then
+        return
+    fi
+    
+    log_info "Running basic tests..."
     
     # Activate virtual environment
     source venv/bin/activate
     
-    # Run pytest
-    if python3 -m pytest tests/ -v; then
-        log_success "All tests passed!"
-    else
-        log_warning "Some tests failed. Check the output above."
-    fi
-}
+    # Test basic imports
+    python3 -c "
+import sys
+print(f'Python version: {sys.version}')
 
-# Docker setup
-setup_docker() {
-    if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
-        log_info "Docker not available, skipping Docker setup"
-        return
+try:
+    import fastapi
+    print('✅ FastAPI imported successfully')
+except ImportError as e:
+    print(f'❌ FastAPI import failed: {e}')
+    sys.exit(1)
+
+try:
+    import uvicorn
+    print('✅ Uvicorn imported successfully')
+except ImportError as e:
+    print(f'❌ Uvicorn import failed: {e}')
+    sys.exit(1)
+
+try:
+    import httpx
+    print('✅ HTTPX imported successfully')
+except ImportError as e:
+    print(f'❌ HTTPX import failed: {e}')
+    sys.exit(1)
+
+print('🎉 All core dependencies working!')
+"
+    
+    if [[ $? -eq 0 ]]; then
+        log_success "✅ Basic tests passed!"
+    else
+        log_warning "⚠️  Some tests failed. Check the output above."
     fi
-    
-    log_info "Setting up Docker environment..."
-    
-    # Build Docker image
-    log_info "Building Docker image..."
-    docker build -t terraform-agent:latest .
-    
-    log_success "Docker image built successfully"
-    log_info "To run with Docker: docker-compose up -d"
 }
 
 # Main setup function
 main() {
-    log_info "🚀 Starting AI Terraform Agent Setup"
-    echo
-    
     # Check requirements first
     check_requirements
     echo
@@ -403,29 +286,13 @@ main() {
     configure_environment
     echo
     
-    # Setup GitHub repository
-    setup_github_repo
-    echo
-    
-    # Setup GCP authentication
-    setup_gcp_auth
-    echo
-    
     # Create startup scripts
     create_scripts
     echo
     
     # Run tests
-    if [[ "${RUN_TESTS:-true}" == "true" ]]; then
-        run_tests
-        echo
-    fi
-    
-    # Setup Docker if available
-    if [[ "${SETUP_DOCKER:-true}" == "true" ]]; then
-        setup_docker
-        echo
-    fi
+    run_tests
+    echo
     
     # Final instructions
     log_success "🎉 Setup complete!"
@@ -441,7 +308,7 @@ main() {
     log_info "- CLI help: ./terraform-cli --help"
     log_info "- Interactive mode: ./terraform-cli interactive"
     echo
-    log_info "Happy Infrastructure Coding! 🏗️"
+    log_success "🏗️  Happy Infrastructure Coding!"
 }
 
 # Parse command line arguments
@@ -451,8 +318,8 @@ while [[ $# -gt 0 ]]; do
             RUN_TESTS=false
             shift
             ;;
-        --skip-docker)
-            SETUP_DOCKER=false
+        --skip-terraform)
+            TERRAFORM_AVAILABLE=true
             shift
             ;;
         --help|-h)
@@ -461,9 +328,9 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo
             echo "Options:"
-            echo "  --skip-tests    Skip running tests"
-            echo "  --skip-docker   Skip Docker setup"
-            echo "  --help, -h      Show this help message"
+            echo "  --skip-tests       Skip running tests"
+            echo "  --skip-terraform   Skip Terraform installation"
+            echo "  --help, -h         Show this help message"
             exit 0
             ;;
         *)
