@@ -1,1 +1,8 @@
-Namespace definition
+# k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: terraform-agent
+  labels:
+    name: terraform-agent
+    app: terraform-agent
