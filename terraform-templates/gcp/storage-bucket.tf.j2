@@ -1,1 +1,55 @@
 
+# terraform-templates/gcp/storage-bucket.tf.j2
+# GCP Storage Bucket Template - Generated from: {{ instruction }}
+resource "google_storage_bucket" "{{ resource_name }}" {
+  name     = "{{ bucket_name }}"
+  location = "{{ location }}"
+
+  uniform_bucket_level_access = true
+
+  versioning {
+    enabled = {{ versioning }}
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  cors {
+    origin          = ["*"]
+    method          = ["GET", "HEAD", "PUT", "POST", "DELETE"]
+    response_header = ["*"]
+    max_age_seconds = 3600
+  }
+
+  labels = {
+    environment = "{{ environment }}"
+    managed_by  = "terraform-agent"
+    created_at  = "{{ timestamp }}"
+  }
+}
+
+# IAM binding for the bucket
+resource "google_storage_bucket_iam_binding" "{{ resource_name }}_binding" {
+  bucket = google_storage_bucket.{{ resource_name }}.name
+  role   = "roles/storage.objectViewer"
+
+  members = [
+    "serviceAccount:{{ project_id }}@appspot.gserviceaccount.com",
+  ]
+}
+
+output "{{ resource_name }}_url" {
+  description = "URL of the {{ bucket_name }} bucket"
+  value       = google_storage_bucket.{{ resource_name }}.url
+}
+
+output "{{ resource_name }}_self_link" {
+  description = "Self link of the {{ bucket_name }} bucket"
+  value       = google_storage_bucket.{{ resource_name }}.self_link
+}
