@@ -1,1 +1,33 @@
 
+# Global Owners
+* @yourusername
+
+# Core Application
+main.py @yourusername
+cli.py @yourusername
+
+# Configuration and Infrastructure
+Dockerfile @yourusername
+docker-compose.yml @yourusername
+k8s/ @yourusername
+.github/workflows/ @yourusername
+
+# Documentation
+README.md @yourusername
+docs/ @yourusername
+
+# Tests
+tests/ @yourusername
+
+# Security and Compliance
+security/ @yourusername
+.github/workflows/security-scan.yml @yourusername
+
+# Templates and Examples
+terraform-templates/ @yourusername
+examples/ @yourusername
+
+# Scripts and Tools
+scripts/ @yourusername
+tools/ @yourusername
+setup.sh @yourusername
