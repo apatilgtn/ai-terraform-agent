@@ -21,7 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
 import base64
-from jinja2 import Template
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,8 +32,9 @@ GITHUB_OWNER = os.getenv("GITHUB_OWNER")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "terraform-infrastructure")
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 
-if not all([GITHUB_TOKEN, GITHUB_OWNER, GCP_PROJECT_ID]):
-    raise ValueError("Missing required environment variables: GITHUB_TOKEN, GITHUB_OWNER, GCP_PROJECT_ID")
+# Make GitHub/GCP optional for local testing
+if not GITHUB_TOKEN or not GITHUB_OWNER or not GCP_PROJECT_ID:
+    logger.warning("Some environment variables are missing. GitHub/GCP features may not work.")
 
 app = FastAPI(
     title="AI Terraform Agent",
@@ -67,10 +67,9 @@ class MCPEvent(BaseModel):
     event: str
     data: Dict[str, Any]
 
-# Terraform Templates
+# Fixed Terraform Templates (using .format() instead of Jinja2)
 TERRAFORM_TEMPLATES = {
-    "gcp_vm": """
-# GCP VM Instance - Generated from: {instruction}
+    "gcp_vm": """# GCP VM Instance - Generated from: {instruction}
 resource "google_compute_instance" "{resource_name}" {{
   name         = "{instance_name}"
   machine_type = "{machine_type}"
@@ -112,8 +111,7 @@ output "{resource_name}_internal_ip" {{
 }}
 """,
 
-    "gcp_storage": """
-# GCP Storage Bucket - Generated from: {instruction}
+    "gcp_storage": """# GCP Storage Bucket - Generated from: {instruction}
 resource "google_storage_bucket" "{resource_name}" {{
   name     = "{bucket_name}"
   location = "{location}"
@@ -136,8 +134,7 @@ output "{resource_name}_url" {{
 }}
 """,
 
-    "gcp_network": """
-# GCP VPC Network - Generated from: {instruction}
+    "gcp_network": """# GCP VPC Network - Generated from: {instruction}
 resource "google_compute_network" "{resource_name}" {{
   name                    = "{network_name}"
   auto_create_subnetworks = {auto_create_subnets}
@@ -168,8 +165,7 @@ output "{resource_name}_network_id" {{
 }}
 """,
 
-    "provider": """
-terraform {{
+    "provider": """terraform {{
   required_version = ">= 1.0"
   required_providers {{
     google = {{
@@ -202,8 +198,9 @@ class KAgent:
             "environment": "dev",
             "region": "us-central1",
             "zone": "us-central1-a",
-            "project_id": GCP_PROJECT_ID,
-            "timestamp": datetime.now().strftime("%Y%m%d%H%M%S")
+            "project_id": GCP_PROJECT_ID or "your-project-id",
+            "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
+            "instruction": instruction
         }
         
         # Parse VM instances
@@ -239,7 +236,14 @@ class KAgent:
                 "target_tags": '["web-server"]'
             })
         
-        config["resource_name"] = config.get("instance_name", config.get("bucket_name", config.get("network_name", "main_resource"))).replace("-", "_")
+        # Set resource_name based on the type
+        if config["resource_type"] == "gcp_vm":
+            config["resource_name"] = config["instance_name"].replace("-", "_")
+        elif config["resource_type"] == "gcp_storage":
+            config["resource_name"] = config["bucket_name"].replace("-", "_")
+        elif config["resource_type"] == "gcp_network":
+            config["resource_name"] = config["network_name"].replace("-", "_")
+        
         return config
     
     @staticmethod
@@ -288,20 +292,17 @@ class KAgent:
     
     @staticmethod
     def _extract_metadata(instruction: str) -> str:
-        """Extract metadata from instruction"""
-        metadata = []
+        """Extract metadata from instruction - Fixed to avoid Jinja2 conflicts"""
         if "ssh" in instruction.lower():
-            metadata.append('enable-oslogin = "true"')
-        return "\n    ".join(metadata) if metadata else 'startup-script = "echo Hello World"'
+            return 'enable-oslogin = "true"'
+        return 'startup-script = "#!/bin/bash\\necho Hello World from Terraform Agent"'
     
     @staticmethod
     def _extract_tags(instruction: str) -> str:
-        """Extract tags from instruction"""
-        tags = ["terraform-managed"]
+        """Extract tags from instruction - Fixed to avoid Jinja2 conflicts"""
         if "web" in instruction.lower():
-            tags.append("http-server")
-            tags.append("https-server")
-        return json.dumps(tags)
+            return '["terraform-managed", "http-server", "https-server"]'
+        return '["terraform-managed"]'
     
     @staticmethod
     def _extract_location(instruction: str) -> str:
@@ -348,6 +349,10 @@ class GitHubManager:
     
     async def create_branch(self, branch_name: str) -> bool:
         """Create a new branch from main"""
+        if not GITHUB_TOKEN:
+            logger.warning("GitHub token not configured, skipping branch creation")
+            return False
+            
         try:
             # Get main branch SHA
             main_response = await self.client.get(
@@ -378,6 +383,10 @@ class GitHubManager:
     
     async def commit_files(self, branch_name: str, files: Dict[str, str], commit_message: str) -> bool:
         """Commit multiple files to branch"""
+        if not GITHUB_TOKEN:
+            logger.warning("GitHub token not configured, skipping file commit")
+            return False
+            
         try:
             for file_path, content in files.items():
                 await self._create_or_update_file(branch_name, file_path, content, commit_message)
@@ -413,6 +422,10 @@ class GitHubManager:
     
     async def create_pull_request(self, branch_name: str, title: str, body: str) -> Optional[str]:
         """Create a pull request"""
+        if not GITHUB_TOKEN:
+            logger.warning("GitHub token not configured, skipping PR creation")
+            return None
+            
         try:
             pr_data = {
                 "title": title,
@@ -444,18 +457,18 @@ class TerraformGenerator:
     
     @staticmethod
     def generate_files(config: Dict[str, Any]) -> Dict[str, str]:
-        """Generate all necessary Terraform files"""
+        """Generate all necessary Terraform files - Fixed template rendering"""
         files = {}
         
-        # Generate provider.tf
-        provider_template = Template(TERRAFORM_TEMPLATES["provider"])
-        files["provider.tf"] = provider_template.render(**config)
+        # Generate provider.tf using string formatting instead of Jinja2
+        provider_template = TERRAFORM_TEMPLATES["provider"]
+        files["provider.tf"] = provider_template.format(**config)
         
-        # Generate main resource file
+        # Generate main resource file using string formatting instead of Jinja2
         resource_type = config["resource_type"]
         if resource_type in TERRAFORM_TEMPLATES:
-            template = Template(TERRAFORM_TEMPLATES[resource_type])
-            files["main.tf"] = template.render(**config)
+            template = TERRAFORM_TEMPLATES[resource_type]
+            files["main.tf"] = template.format(**config)
         
         # Generate variables.tf
         files["variables.tf"] = TerraformGenerator._generate_variables(config)
@@ -547,7 +560,6 @@ async def generate_terraform(request: TerraformRequest, background_tasks: Backgr
     try:
         # Parse instruction
         config = KAgent.parse_instruction(request.instruction)
-        config["instruction"] = request.instruction
         
         # Generate Terraform files
         terraform_files = TerraformGenerator.generate_files(config)
@@ -555,18 +567,22 @@ async def generate_terraform(request: TerraformRequest, background_tasks: Backgr
         # Create branch name
         branch_name = request.branch_name or f"terraform-{config['resource_type']}-{config['timestamp']}"
         
-        # Schedule GitHub operations in background
-        background_tasks.add_task(
-            deploy_to_github,
-            branch_name,
-            terraform_files,
-            request.instruction,
-            config
-        )
+        # Schedule GitHub operations in background (only if configured)
+        if GITHUB_TOKEN and GITHUB_OWNER:
+            background_tasks.add_task(
+                deploy_to_github,
+                branch_name,
+                terraform_files,
+                request.instruction,
+                config
+            )
+            message = "Terraform files generated successfully. GitHub deployment in progress."
+        else:
+            message = "Terraform files generated successfully. (GitHub not configured)"
         
         return TerraformResponse(
             success=True,
-            message="Terraform files generated successfully. GitHub deployment in progress.",
+            message=message,
             branch_name=branch_name,
             terraform_files=terraform_files
         )
