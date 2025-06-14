@@ -97,27 +97,27 @@ sequenceDiagram
 ```mermaid
 graph TD
     subgraph "Natural Language Input"
-        INPUT[📝 User Instruction<br/>"Create a small Ubuntu VM named web-server"]
+        INPUT["📝 User Instruction<br/>Create a small Ubuntu VM named web-server"]
     end
     
     subgraph "KAgent - AI Processing Pipeline"
-        PARSE[🔍 Text Parsing<br/>Keyword extraction]
-        INTENT[🎯 Intent Recognition<br/>Resource type detection]
-        CONTEXT[🔄 Context Analysis<br/>Size, OS, region inference]
-        KNOWLEDGE[📚 Knowledge Base<br/>Cloud best practices]
-        MAPPING[🗺️ Parameter Mapping<br/>Abstract → Concrete values]
+        PARSE["🔍 Text Parsing<br/>Keyword extraction"]
+        INTENT["🎯 Intent Recognition<br/>Resource type detection"]
+        CONTEXT["🔄 Context Analysis<br/>Size, OS, region inference"]
+        KNOWLEDGE["📚 Knowledge Base<br/>Cloud best practices"]
+        MAPPING["🗺️ Parameter Mapping<br/>Abstract to Concrete values"]
     end
     
     subgraph "Configuration Generation"
-        CONFIG[⚙️ Configuration Object<br/>Structured parameters]
-        VALIDATION[✅ Validation<br/>Check completeness]
-        DEFAULTS[🎛️ Smart Defaults<br/>Fill missing values]
+        CONFIG["⚙️ Configuration Object<br/>Structured parameters"]
+        VALIDATION["✅ Validation<br/>Check completeness"]
+        DEFAULTS["🎛️ Smart Defaults<br/>Fill missing values"]
     end
     
     subgraph "Template Processing"
-        TEMPLATE[📄 Template Selection<br/>Choose appropriate template]
-        RENDER[🎨 Template Rendering<br/>Substitute variables]
-        OUTPUT[📋 Generated Files<br/>Complete Terraform code]
+        TEMPLATE["📄 Template Selection<br/>Choose appropriate template"]
+        RENDER["🎨 Template Rendering<br/>Substitute variables"]
+        OUTPUT["📋 Generated Files<br/>Complete Terraform code"]
     end
     
     INPUT --> PARSE
