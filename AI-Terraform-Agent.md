@@ -145,36 +145,36 @@ graph TD
 
 ```mermaid
 graph LR
-    subgraph "Input Processing"
-        NL[Natural Language<br/>"Create VM"]
-        STRUCT[Structured Data<br/>JSON Config]
+    subgraph Input["Input Processing"]
+        NL[Natural Language]
+        STRUCT[Structured Data]
     end
     
-    subgraph "AI Knowledge Base"
-        PATTERNS[Language Patterns<br/>VM, instance, server]
-        MAPPINGS[Resource Mappings<br/>small → e2-micro]
-        DEFAULTS[Smart Defaults<br/>Region, disk size]
-        TEMPLATES[Code Templates<br/>HCL templates]
+    subgraph AI["AI Knowledge Base"]
+        PATTERNS[Language Patterns]
+        MAPPINGS[Resource Mappings]
+        DEFAULTS[Smart Defaults]
+        TEMPLATES[Code Templates]
     end
     
-    subgraph "Code Generation"
-        PROVIDER[provider.tf<br/>GCP configuration]
-        MAIN[main.tf<br/>Resource definitions]
-        VARS[variables.tf<br/>Input variables]
-        TFVARS[terraform.tfvars<br/>Variable values]
-        README[README.md<br/>Documentation]
+    subgraph Gen["Code Generation"]
+        PROVIDER[provider.tf]
+        MAIN[main.tf]
+        VARS[variables.tf]
+        TFVARS[terraform.tfvars]
+        README[README.md]
     end
     
-    subgraph "Version Control"
-        BRANCH[Git Branch<br/>feature/new-vm]
-        COMMIT[Git Commit<br/>Add Terraform config]
-        PR[Pull Request<br/>Code review]
+    subgraph VC["Version Control"]
+        BRANCH[Git Branch]
+        COMMIT[Git Commit]
+        PR[Pull Request]
     end
     
-    subgraph "Infrastructure"
-        PLAN[Terraform Plan<br/>Preview changes]
-        APPLY[Terraform Apply<br/>Create resources]
-        INFRA[Cloud Infrastructure<br/>Running resources]
+    subgraph Infra["Infrastructure"]
+        PLAN[Terraform Plan]
+        APPLY[Terraform Apply]
+        CLOUD[Cloud Resources]
     end
     
     NL --> STRUCT
@@ -195,11 +195,11 @@ graph LR
     
     PR --> PLAN
     PLAN --> APPLY
-    APPLY --> INFRA
+    APPLY --> CLOUD
     
     style NL fill:#e1f5fe
     style STRUCT fill:#f3e5f5
-    style INFRA fill:#e8f5e8
+    style CLOUD fill:#e8f5e8
 ```
 
 ## 🐳 **Deployment Architecture**
