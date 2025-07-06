@@ -72,12 +72,23 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
-    error "Missing required environment variables:"
+    warn "Missing recommended environment variables:"
     for var in "${MISSING_VARS[@]}"; do
-        error "  - $var"
+        warn "  - $var"
     done
-    error "Please set these variables in your .env file or environment."
-    exit 1
+    warn "Some features may not work without these variables."
+    warn "Set these variables in your .env file or environment for full functionality."
+    
+    # Set default values for local testing
+    if [[ -z "$GITHUB_TOKEN" ]]; then
+        export GITHUB_TOKEN="local-testing-token"
+    fi
+    if [[ -z "$GITHUB_OWNER" ]]; then
+        export GITHUB_OWNER="local-testing-owner"
+    fi
+    if [[ -z "$GCP_PROJECT_ID" ]]; then
+        export GCP_PROJECT_ID="local-testing-project"
+    fi
 fi
 
 # Check if required dependencies are installed
