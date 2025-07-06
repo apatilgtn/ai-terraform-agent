@@ -27,16 +27,16 @@ def read_version():
 setup(
     name="ai-terraform-agent",
     version=read_version(),
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="AI Terraform Team",
+    author_email="terraform-agent@example.com",
     description="AI-powered Terraform agent that converts natural language to infrastructure code",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/ai-terraform-agent",
+    url="https://github.com/apatilgtn/ai-terraform-agent",
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/ai-terraform-agent/issues",
-        "Documentation": "https://github.com/yourusername/ai-terraform-agent/docs",
-        "Source": "https://github.com/yourusername/ai-terraform-agent",
+        "Bug Reports": "https://github.com/apatilgtn/ai-terraform-agent/issues",
+        "Documentation": "https://github.com/apatilgtn/ai-terraform-agent/docs",
+        "Source": "https://github.com/apatilgtn/ai-terraform-agent",
     },
     packages=find_packages(exclude=["tests*"]),
     classifiers=[
@@ -80,8 +80,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "terraform-agent=main:main",
-            "terraform-cli=cli:main",
+            "terraform-agent=ai_terraform_agent.main:main",
+            "terraform-cli=ai_terraform_agent.cli:main",
         ],
     },
     include_package_data=True,
